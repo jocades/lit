@@ -1,21 +1,17 @@
-package main
+package lit
 
 import (
-	"errors"
-	"lit/pkg"
-	"log"
-	"net/http"
+	// "errors"
+	// "log"
+	// "net/http"
+	//
+	_ "github.com/jocades/lit/pkg"
 )
 
-func main() {
+/* func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
 	app := lit.New()
-
-	app.GET("/", func(c *lit.Context) error {
-		c.Text("Hello World!")
-		return nil
-	})
 
 	app.GET("/text", func(c *lit.Context) error {
 		return c.Text("Hello World!")
@@ -42,4 +38,4 @@ func main() {
 	if err := http.ListenAndServe(":8000", app); err != nil {
 		log.Fatal(err)
 	}
-}
+} */
