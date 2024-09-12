@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"lit/pkg/lit"
+	"lit/pkg"
 	"log"
 	"net/http"
 )
