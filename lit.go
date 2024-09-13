@@ -227,7 +227,7 @@ func FmtStatus(code int) string {
 	case code >= 500:
 		return FmtColor(code, "red")
 	default:
-		return string(code)
+		return fmt.Sprintf("%d", code)
 	}
 }
 

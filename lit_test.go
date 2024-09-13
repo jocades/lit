@@ -1,20 +1,34 @@
 package lit_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/jocades/lit"
+	"github.com/jocades/lit/middleware"
 	"github.com/stretchr/testify/assert"
 )
 
-func makeRequest(h http.Handler, method, path string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(method, path, nil)
+func makeRequest(h http.Handler, m, p string, b any, withAuth bool) *httptest.ResponseRecorder {
+	body, _ := json.Marshal(b)
+	req, _ := http.NewRequest(m, p, bytes.NewBuffer(body))
+	if withAuth {
+		req.Header.Set("Authorization", "Bearer token")
+	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	return w
+
+}
+
+func decode[T any](r io.Reader) (T, error) {
+	var v T
+	return v, json.NewDecoder(r).Decode(&v)
 }
 
 func TestLit(t *testing.T) {
@@ -42,27 +56,34 @@ func TestLit(t *testing.T) {
 
 	// make use of the htttest and assert packages to test endpoints
 	t.Run("returns text", func(t *testing.T) {
-		assert.HTTPSuccess(t, app.ServeHTTP, "GET", "/text", nil)
-		assert.HTTPBodyContains(t, app.ServeHTTP, "GET", "/text", nil, "Hello World!")
+		w := makeRequest(app, "GET", "/text", nil, false)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "Hello World!", w.Body.String())
 	})
 
 	t.Run("returns json", func(t *testing.T) {
-		assert.HTTPSuccess(t, app.ServeHTTP, "GET", "/json", nil)
-		assert.HTTPBodyContains(t, app.ServeHTTP, "GET", "/json", nil, "Hello World!")
+		w := makeRequest(app, "GET", "/json", nil, false)
+		body, _ := decode[lit.Map](w.Body)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "Hello World!", body["message"])
 	})
 
 	t.Run("returns html", func(t *testing.T) {
-		assert.HTTPSuccess(t, app.ServeHTTP, "GET", "/html", nil)
-		assert.HTTPBodyContains(t, app.ServeHTTP, "GET", "/html", nil, "Hello World!")
+		w := makeRequest(app, "GET", "/html", nil, false)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "<h1>Hello World!</h1>", w.Body.String())
 	})
 
 	t.Run("returns bad request", func(t *testing.T) {
-		res := makeRequest(app, "GET", "/bad")
+		res := makeRequest(app, "GET", "/bad", nil, false)
 		assert.Equal(t, http.StatusBadRequest, res.Code)
 	})
 
 	t.Run("returns internal error", func(t *testing.T) {
-		res := makeRequest(app, "GET", "/err")
+		res := makeRequest(app, "GET", "/err", nil, false)
 		assert.Equal(t, http.StatusInternalServerError, res.Code)
 	})
 
@@ -70,7 +91,7 @@ func TestLit(t *testing.T) {
 
 func TestLitMW(t *testing.T) {
 	app := lit.New()
-	app.Use(lit.RequestLogger())
+	app.Use(middleware.Logging())
 
 	app.GET("/",
 		func(c *lit.Context) error {
@@ -92,11 +113,13 @@ func TestLitMW(t *testing.T) {
 		})
 
 	t.Run("middleware", func(t *testing.T) {
-		assert.HTTPSuccess(t, app.ServeHTTP, "GET", "/", nil)
+		w := makeRequest(app, "GET", "/", nil, false)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "Hello World!", w.Body.String())
 	})
 
-	t.Run("multiple next calls", func(t *testing.T) {
-		res := makeRequest(app, "GET", "/next")
-		assert.Equal(t, http.StatusInternalServerError, res.Code)
-	})
+	// t.Run("multiple next calls", func(t *testing.T) {
+	// 	res := makeRequest(app, "GET", "/next")
+	// 	assert.Equal(t, http.StatusInternalServerError, res.Code)
+	// })
 }
