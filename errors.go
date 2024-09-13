@@ -48,8 +48,8 @@ var (
 	ErrNotExtended                   = NewError(http.StatusNotExtended)                   // HTTP 510 Not Extended
 	ErrNetworkAuthenticationRequired = NewError(http.StatusNetworkAuthenticationRequired) // HTTP 511 Network Authentication Required
 
+	ErrNoNextHandler          = errors.New("no next handler")
 	ErrValidatorNotRegistered = errors.New("validator not registered")
-	ErrRendererNotRegistered  = errors.New("renderer not registered")
 	ErrInvalidRedirectCode    = errors.New("invalid redirect status code")
 	ErrCookieNotFound         = errors.New("cookie not found")
 	ErrInvalidCertOrKeyType   = errors.New("invalid cert or key type, must be string or []byte")

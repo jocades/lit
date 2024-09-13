@@ -7,7 +7,15 @@ import (
 	"testing"
 
 	"github.com/jocades/lit"
+	"github.com/stretchr/testify/assert"
 )
+
+func makeRequest(h http.Handler, method, path string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	return w
+}
 
 func TestLit(t *testing.T) {
 	app := lit.New()
@@ -32,77 +40,63 @@ func TestLit(t *testing.T) {
 		return errors.New("internal error")
 	})
 
+	// make use of the htttest and assert packages to test endpoints
 	t.Run("returns text", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodGet, "/text", nil)
-		response := httptest.NewRecorder()
-
-		app.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusOK)
-		assertBody(t, response.Body.String(), "Hello World!")
+		assert.HTTPSuccess(t, app.ServeHTTP, "GET", "/text", nil)
+		assert.HTTPBodyContains(t, app.ServeHTTP, "GET", "/text", nil, "Hello World!")
 	})
 
 	t.Run("returns json", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodGet, "/json", nil)
-		response := httptest.NewRecorder()
-
-		app.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusOK)
-		// assertBody(t, response.Body.String(), `{"message":"Hello World!"}`)
+		assert.HTTPSuccess(t, app.ServeHTTP, "GET", "/json", nil)
+		assert.HTTPBodyContains(t, app.ServeHTTP, "GET", "/json", nil, "Hello World!")
 	})
 
 	t.Run("returns html", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodGet, "/html", nil)
-		response := httptest.NewRecorder()
-
-		app.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusOK)
-		assertBody(t, response.Body.String(), "<h1>Hello World!</h1>")
+		assert.HTTPSuccess(t, app.ServeHTTP, "GET", "/html", nil)
+		assert.HTTPBodyContains(t, app.ServeHTTP, "GET", "/html", nil, "Hello World!")
 	})
 
 	t.Run("returns bad request", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodGet, "/bad", nil)
-		response := httptest.NewRecorder()
-
-		app.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusBadRequest)
+		res := makeRequest(app, "GET", "/bad")
+		assert.Equal(t, http.StatusBadRequest, res.Code)
 	})
 
 	t.Run("returns internal error", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodGet, "/err", nil)
-		response := httptest.NewRecorder()
-
-		app.ServeHTTP(response, request)
-
-		assertStatus(t, response.Code, http.StatusInternalServerError)
+		res := makeRequest(app, "GET", "/err")
+		assert.Equal(t, http.StatusInternalServerError, res.Code)
 	})
 
 }
 
-func assertStatus(t testing.TB, got, want int) {
-	t.Helper()
-	if got != want {
-		t.Errorf("did not get correct status, got %d, want %d", got, want)
-	}
-}
+func TestLitMW(t *testing.T) {
+	app := lit.New()
+	app.Use(lit.RequestLogger())
 
-func assertBody(t testing.TB, got, want string) {
-	t.Helper()
-	if got != want {
-		t.Errorf("did not get correct body, got %s, want %s", got, want)
-	}
-}
+	app.GET("/",
+		func(c *lit.Context) error {
+			t.Log("mw1")
+			return c.Next()
+		},
+		func(c *lit.Context) error {
+			t.Log("mw2")
+			return c.Text("Hello World!")
+		})
 
-func assertError(t testing.TB, got, want error) {
-	t.Helper()
-	if got == nil {
-		t.Fatal("wanted an error but didn't get one")
-	}
+	app.GET("/next",
+		func(c *lit.Context) error {
+			c.Next() // should error here
+			return c.Next()
+		},
+		func(c *lit.Context) error {
+			return c.Text("Hello World!")
+		})
 
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
+	t.Run("middleware", func(t *testing.T) {
+		assert.HTTPSuccess(t, app.ServeHTTP, "GET", "/", nil)
+	})
+
+	t.Run("multiple next calls", func(t *testing.T) {
+		res := makeRequest(app, "GET", "/next")
+		assert.Equal(t, http.StatusInternalServerError, res.Code)
+	})
 }
