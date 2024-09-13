@@ -59,11 +59,6 @@ func addRoute(mux *http.ServeMux, method, path string, h HandlerFunc, eh ErrHand
 			Next:  func() error { return nil },
 		}
 
-		// apply the middleware
-		// for i := len(a.middleware) - 1; i >= 0; i-- {
-		// 	h = a.middleware[i](c, h)
-		// }
-
 		if err := h(c); err != nil {
 			eh(err, c)
 		}
@@ -74,11 +69,11 @@ func addRoute(mux *http.ServeMux, method, path string, h HandlerFunc, eh ErrHand
 func compose(handlers []HandlerFunc) HandlerFunc {
 	return func(c *Context) error {
 		fmt.Println("compose", len(handlers))
-		i := -1
+		i := len(handlers)
 		c.Next = func() error {
-			i++
+			i--
 			fmt.Println("next", i)
-			if i >= len(handlers) {
+			if i < 0 {
 				return errors.New("next called after the last handler")
 			}
 			fmt.Println("call", i)
@@ -90,55 +85,16 @@ func compose(handlers []HandlerFunc) HandlerFunc {
 }
 
 func (a *App) Add(method, path string, handlers ...HandlerFunc) {
-	fmt.Println("add", path, "mw:", len(a.middleware), "h:", len(handlers))
-	h := compose(append(a.middleware, handlers...))
+	h := compose(append(handlers, a.middleware...))
 	addRoute(a.mux, method, path, h, a.ErrorHandler)
-}
-
-func RequestLogger() HandlerFunc {
-	return func(c *Context) error {
-		start := time.Now()
-		m := FmtColor(c.Req.Method, "green")
-		u := FmtColor(c.Req.URL.String(), "cyan")
-
-		fmt.Printf("-> %s %s\n", m, u)
-		err := c.Next()
-		fmt.Printf("<- %s %s\n", m, u)
-		fmt.Printf("   %s\n", FmtColor(time.Since(start).String(), "yellow"))
-
-		return err
-	}
-
-}
-
-func SecondMiddleware() HandlerFunc {
-	return func(c *Context) error {
-		fmt.Println("second middleware")
-		fmt.Println("stop chain")
-		return c.Text("stop chain")
-		// return next(c)
-	}
-}
-
-func withLogging(c *Context) error {
-	start := time.Now()
-	m := FmtColor(c.Req.Method, "green")
-	u := FmtColor(c.Req.URL.String(), "cyan")
-
-	fmt.Printf("-> %s %s\n", m, u)
-	err := c.Next()
-	fmt.Printf("<- %s %s\n", m, u)
-	fmt.Printf("   %s\n", FmtColor(time.Since(start).String(), "yellow"))
-
-	return err
 }
 
 func (a *App) Use(h HandlerFunc) {
 	a.middleware = append(a.middleware, h)
 }
 
-func (a *App) GET(path string, h ...HandlerFunc) {
-	a.Add(http.MethodGet, path, h...)
+func (a *App) GET(path string, h HandlerFunc, hs ...HandlerFunc) {
+	a.Add(http.MethodGet, path, append(hs, h)...)
 }
 
 func (a *App) POST(path string, h HandlerFunc) {
@@ -240,4 +196,42 @@ type Response struct {
 
 func NewResponse(w http.ResponseWriter) *Response {
 	return &Response{ResponseWriter: w}
+}
+
+func RequestLogger() HandlerFunc {
+	return func(c *Context) error {
+		start := time.Now()
+		m := FmtColor(c.Req.Method, "green")
+		u := FmtColor(c.Req.URL.String(), "cyan")
+
+		fmt.Printf("-> %s %s\n", m, u)
+		err := c.Next()
+		fmt.Printf("<- %s %s\n", m, u)
+		fmt.Printf("   %s\n", FmtColor(time.Since(start).String(), "yellow"))
+
+		return err
+	}
+
+}
+
+func SecondMiddleware() HandlerFunc {
+	return func(c *Context) error {
+		fmt.Println("second middleware")
+		fmt.Println("stop chain")
+		return c.Text("stop chain")
+		// return next(c)
+	}
+}
+
+func withLogging(c *Context) error {
+	start := time.Now()
+	m := FmtColor(c.Req.Method, "green")
+	u := FmtColor(c.Req.URL.String(), "cyan")
+
+	fmt.Printf("-> %s %s\n", m, u)
+	err := c.Next()
+	fmt.Printf("<- %s %s\n", m, u)
+	fmt.Printf("   %s\n", FmtColor(time.Since(start).String(), "yellow"))
+
+	return err
 }

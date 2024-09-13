@@ -10,12 +10,12 @@ func main() {
 	app := lit.New()
 
 	app.Use(lit.RequestLogger())
-	// app.Use(lit.SecondMiddleware)
+	// app.Use(lit.SecondMiddleware())
 
 	app.GET("/",
 		func(c *lit.Context) error {
 			fmt.Println("mw1")
-			c.Next()
+			// c.Next()
 			return c.Next()
 		},
 		func(c *lit.Context) error {
